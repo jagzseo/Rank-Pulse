@@ -3,6 +3,7 @@ import { useAppStore } from '../store/useAppStore';
 import { Keyword, SerpResult } from '../types';
 import RankingChart from './RankingChart';
 import AlertsSection from './AlertsSection';
+import CreditUsageBar from './CreditUsageBar';
 import {
   ArrowLeft,
   Plus,
@@ -215,8 +216,25 @@ export default function ProjectDetail() {
 
   const handleCheckAll = async () => {
     if (project.keywords.length === 0) return;
-    await checkRankings(project.id);
+    await checkRankings(project.id, false);
   };
+
+  const handleSmartCheck = async () => {
+    if (project.keywords.length === 0) return;
+    await checkRankings(project.id, true);
+  };
+
+  // Calculate how many keywords would be skipped in smart check
+  const getSmartCheckCount = () => {
+    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    return project.keywords.filter((k) => {
+      if (!k.lastChecked) return true;
+      const lastCheckTime = new Date(k.lastChecked).getTime();
+      return lastCheckTime < oneHourAgo;
+    }).length;
+  };
+
+  const smartCheckCount = getSmartCheckCount();
 
   const handleCheckSingle = async (keywordId: string) => {
     setCheckingSingle(keywordId);
@@ -285,16 +303,32 @@ export default function ProjectDetail() {
             <span className="text-sm text-gray-500 truncate">{project.url}</span>
           </div>
         </div>
-        <button
-          onClick={handleCheckAll}
-          disabled={checkProgress.isChecking || project.keywords.length === 0}
-          className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed self-start"
-        >
-          <RefreshCw size={16} className={checkProgress.isChecking ? 'animate-spin' : ''} />
-          {checkProgress.isChecking
-            ? `Checking ${checkProgress.current}/${checkProgress.total}...`
-            : 'Check All Rankings'}
-        </button>
+        <div className="flex items-center gap-2 self-start">
+          <button
+            onClick={handleSmartCheck}
+            disabled={checkProgress.isChecking || project.keywords.length === 0 || smartCheckCount === 0}
+            className="flex items-center gap-2 bg-white border border-emerald-200 text-emerald-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Only check keywords not checked in the last hour. Saves API credits!"
+          >
+            <Zap size={16} />
+            Smart Check
+            {smartCheckCount < project.keywords.length && (
+              <span className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0.5 rounded-full">
+                {smartCheckCount}/{project.keywords.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={handleCheckAll}
+            disabled={checkProgress.isChecking || project.keywords.length === 0}
+            className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw size={16} className={checkProgress.isChecking ? 'animate-spin' : ''} />
+            {checkProgress.isChecking
+              ? `Checking ${checkProgress.current}/${checkProgress.total}...`
+              : 'Check All'}
+          </button>
+        </div>
       </div>
 
       {/* Progress Bar */}
@@ -320,11 +354,14 @@ export default function ProjectDetail() {
               {checkProgress.error}
             </p>
           )}
-          <p className="text-xs text-gray-400 mt-1">
-            Note: API calls are rate-limited (~1.2s per keyword). Please be patient.
+          <p className="text-xs text-gray-400 mt-2">
+            💡 Smart optimizations active: Reduced results per query, 0.8s delay, SERP caching enabled
           </p>
         </div>
       )}
+
+      {/* Credit Usage Info */}
+      <CreditUsageBar />
 
       {/* Quick Stats */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm">

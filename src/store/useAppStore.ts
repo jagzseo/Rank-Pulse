@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { Project, Keyword, ViewType } from '../types';
-import { fetchSerpResults, findYourPosition, getApiConfig, extractDomain } from '../services/serpApi';
+import { 
+  fetchSerpResults, 
+  findYourPosition, 
+  getApiConfig, 
+  extractDomain,
+  getSmartResultsCount,
+  updateCreditUsage,
+  getCreditUsage,
+  getCacheSize
+} from '../services/serpApi';
 import { locations } from '../data/locations';
 
 interface AppState {
@@ -18,7 +27,7 @@ interface AppState {
   addKeyword: (projectId: string, keyword: Keyword) => void;
   addBulkKeywords: (projectId: string, keywords: Keyword[]) => void;
   removeKeyword: (projectId: string, keywordId: string) => void;
-  checkRankings: (projectId: string) => Promise<void>;
+  checkRankings: (projectId: string, smartCheck?: boolean) => Promise<void>;
   checkSingleKeyword: (projectId: string, keywordId: string) => Promise<void>;
   setCheckProgress: (progress: { current: number; total: number; isChecking: boolean; error: string | null }) => void;
 }
@@ -145,7 +154,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { projects: newProjects };
     }),
 
-  checkRankings: async (projectId) => {
+  checkRankings: async (projectId, smartCheck = false) => {
     const state = get();
     const project = state.projects.find((p) => p.id === projectId);
     if (!project || project.keywords.length === 0) return;
@@ -160,17 +169,35 @@ export const useAppStore = create<AppState>((set, get) => ({
     const countryCode = locationData?.countryCode || 'us';
     const projectDomain = getDomainFromUrl(project.url);
 
-    set({ checkProgress: { current: 0, total: project.keywords.length, isChecking: true, error: null } });
+    // Smart check: skip keywords checked within the last hour
+    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    const keywordsToCheck = smartCheck
+      ? project.keywords.filter((k) => {
+          if (!k.lastChecked) return true;
+          const lastCheckTime = new Date(k.lastChecked).getTime();
+          return lastCheckTime < oneHourAgo;
+        })
+      : project.keywords;
+
+    const skippedCount = project.keywords.length - keywordsToCheck.length;
+
+    set({ checkProgress: { current: 0, total: keywordsToCheck.length, isChecking: true, error: null } });
 
     const today = new Date().toISOString().split('T')[0];
     let updatedKeywords = [...project.keywords];
+    let apiCallsMade = 0;
+    let cachedHits = 0;
 
-    for (let i = 0; i < project.keywords.length; i++) {
-      const keyword = project.keywords[i];
+    for (let i = 0; i < keywordsToCheck.length; i++) {
+      const keyword = keywordsToCheck[i];
+      const keywordIndex = project.keywords.findIndex((k) => k.id === keyword.id);
 
-      set({ checkProgress: { current: i, total: project.keywords.length, isChecking: true, error: null } });
+      set({ checkProgress: { current: i, total: keywordsToCheck.length, isChecking: true, error: null } });
 
       try {
+        // Smart results count based on keyword's best position
+        const maxResults = getSmartResultsCount(keyword.bestPosition);
+
         const serpResults = await fetchSerpResults({
           query: keyword.text,
           engine: project.searchEngine,
@@ -178,7 +205,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           countryCode,
           city: project.city || '',
           isGoogleBusiness: keyword.isGoogleBusiness,
+          maxResults,
         });
+
+        apiCallsMade++;
 
         // Determine which domain to look for
         const targetDomain = keyword.url ? getDomainFromUrl(keyword.url) : projectDomain;
@@ -194,7 +224,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         const yourPosition = findYourPosition(resultsWithYours, keyword.url || project.url);
 
-        updatedKeywords[i] = {
+        updatedKeywords[keywordIndex] = {
           ...keyword,
           previousPosition: keyword.currentPosition,
           currentPosition: yourPosition,
@@ -209,12 +239,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         };
       } catch (error: any) {
         console.error(`Error checking "${keyword.text}":`, error);
-        set({ checkProgress: { current: i + 1, total: project.keywords.length, isChecking: true, error: error.message } });
+        set({ checkProgress: { current: i + 1, total: keywordsToCheck.length, isChecking: true, error: error.message } });
       }
 
-      // Rate limit delay between requests
-      if (i < project.keywords.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+      // Reduced rate limit delay (0.8s instead of 1.2s)
+      if (i < keywordsToCheck.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
       }
 
       // Update keywords progressively in the UI
@@ -227,6 +257,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     }
 
+    // Update credit usage tracking
+    const creditUsage = getCreditUsage();
+    updateCreditUsage({
+      totalRequests: creditUsage.totalRequests + apiCallsMade,
+      skippedKeywords: creditUsage.skippedKeywords + skippedCount,
+      savedRequests: creditUsage.savedRequests + skippedCount,
+    });
+
     // Final update with lastChecked
     set((state) => {
       const newProjects = state.projects.map((p) =>
@@ -235,7 +273,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       saveProjects(newProjects);
       return {
         projects: newProjects,
-        checkProgress: { current: project.keywords.length, total: project.keywords.length, isChecking: false, error: null },
+        checkProgress: { 
+          current: keywordsToCheck.length, 
+          total: keywordsToCheck.length, 
+          isChecking: false, 
+          error: null 
+        },
       };
     });
   },
@@ -255,6 +298,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     const projectDomain = getDomainFromUrl(project.url);
 
     try {
+      // Smart results count based on keyword's best position
+      const maxResults = getSmartResultsCount(keyword.bestPosition);
+
       const serpResults = await fetchSerpResults({
         query: keyword.text,
         engine: project.searchEngine,
@@ -262,6 +308,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         countryCode,
         city: project.city || '',
         isGoogleBusiness: keyword.isGoogleBusiness,
+        maxResults,
+      });
+
+      // Track credit usage
+      const creditUsage = getCreditUsage();
+      updateCreditUsage({
+        totalRequests: creditUsage.totalRequests + 1,
       });
 
       const targetDomain = keyword.url ? getDomainFromUrl(keyword.url) : projectDomain;

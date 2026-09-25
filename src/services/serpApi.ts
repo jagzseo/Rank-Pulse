@@ -58,6 +58,7 @@ export interface SearchParams {
   countryCode: string;
   city: string;
   isGoogleBusiness?: boolean;
+  maxResults?: number; // How many results to fetch (saves credits)
 }
 
 export function extractDomain(url: string): string {
@@ -69,6 +70,56 @@ export function extractDomain(url: string): string {
   }
 }
 
+// ============ SERP CACHE ============
+// Cache SERP results to avoid duplicate API calls
+// Key format: "engine:query:country:city:isGBP:maxResults"
+interface CacheEntry {
+  results: SerpResult[];
+  timestamp: number;
+}
+
+const SERP_CACHE_TTL = 60 * 60 * 1000; // 1 hour cache
+const serpCache = new Map<string, CacheEntry>();
+
+function getCacheKey(params: SearchParams): string {
+  return `${params.engine}:${params.query.toLowerCase()}:${params.countryCode}:${params.city}:${params.isGoogleBusiness}:${params.maxResults || 10}`;
+}
+
+function getCachedResults(params: SearchParams): SerpResult[] | null {
+  const key = getCacheKey(params);
+  const entry = serpCache.get(key);
+  if (entry && Date.now() - entry.timestamp < SERP_CACHE_TTL) {
+    return entry.results;
+  }
+  if (entry) {
+    serpCache.delete(key); // Clean expired
+  }
+  return null;
+}
+
+function setCachedResults(params: SearchParams, results: SerpResult[]) {
+  const key = getCacheKey(params);
+  serpCache.set(key, { results, timestamp: Date.now() });
+  
+  // Limit cache size to prevent memory issues
+  if (serpCache.size > 200) {
+    const oldest = serpCache.keys().next().value;
+    if (oldest) serpCache.delete(oldest);
+  }
+}
+
+// ============ SMART RESULTS COUNT ============
+// Determine how many results to fetch based on keyword history
+export function getSmartResultsCount(keywordBestPosition: number | null): number {
+  if (!keywordBestPosition) return 10; // Default for new keywords
+  if (keywordBestPosition <= 3) return 5; // Top 3 keywords - only need a few results
+  if (keywordBestPosition <= 10) return 10; // Top 10 - standard
+  if (keywordBestPosition <= 30) return 30; // Page 2-3
+  return 10; // For positions > 30, just check top 10 (they're unlikely to be found)
+}
+
+// ============ API IMPLEMENTATIONS ============
+
 // Scrapingdog API implementation
 async function fetchFromScrapingdog(params: SearchParams): Promise<SerpResult[]> {
   const { apiKey, endpoint } = getApiConfig();
@@ -77,10 +128,16 @@ async function fetchFromScrapingdog(params: SearchParams): Promise<SerpResult[]>
     throw new Error('API key not configured. Please add your API key in Settings.');
   }
 
+  // Check cache first
+  const cached = getCachedResults(params);
+  if (cached) return cached;
+
+  const maxResults = params.maxResults || 10;
+
   const searchParams = new URLSearchParams({
     api_key: apiKey,
     query: params.query,
-    results: '10',
+    results: String(maxResults),
     country: params.countryCode,
     page: '0',
   });
@@ -130,7 +187,7 @@ async function fetchFromScrapingdog(params: SearchParams): Promise<SerpResult[]>
     let results: SerpResult[] = [];
 
     if (data.organic_results) {
-      results = data.organic_results.slice(0, 10).map((item: any) => ({
+      results = data.organic_results.slice(0, maxResults).map((item: any) => ({
         position: item.rank || item.position || 0,
         title: item.title || 'N/A',
         link: item.link || '',
@@ -139,6 +196,9 @@ async function fetchFromScrapingdog(params: SearchParams): Promise<SerpResult[]>
         isYours: false,
       }));
     }
+
+    // Cache the results
+    setCachedResults(params, results);
 
     return results;
   } catch (error: any) {
@@ -157,6 +217,11 @@ async function fetchFromSerpAPI(params: SearchParams): Promise<SerpResult[]> {
     throw new Error('API key not configured. Please add your API key in Settings.');
   }
 
+  // Check cache first
+  const cached = getCachedResults(params);
+  if (cached) return cached;
+
+  const maxResults = params.maxResults || 10;
   const engineParam = params.engine === 'google' ? 'google' : params.engine;
 
   const searchParams = new URLSearchParams({
@@ -165,15 +230,13 @@ async function fetchFromSerpAPI(params: SearchParams): Promise<SerpResult[]> {
     api_key: apiKey,
     gl: params.countryCode,
     hl: 'en',
-    num: '10',
+    num: String(maxResults),
   });
 
-  // Add location for geo-targeting
   if (params.city && params.country) {
     searchParams.set('location', `${params.city},${params.country}`);
   }
 
-  // For Google Business / Local Pack
   if (params.isGoogleBusiness) {
     searchParams.set('tbm', 'lcl');
   }
@@ -194,12 +257,11 @@ async function fetchFromSerpAPI(params: SearchParams): Promise<SerpResult[]> {
     }
 
     const data = await response.json();
-
     let results: SerpResult[] = [];
 
     if (params.isGoogleBusiness && data.local_results) {
       const localResults = data.local_results.results || data.local_results || [];
-      results = localResults.slice(0, 10).map((item: any, index: number) => ({
+      results = localResults.slice(0, maxResults).map((item: any, index: number) => ({
         position: index + 1,
         title: item.title || 'N/A',
         link: item.link || '',
@@ -208,7 +270,7 @@ async function fetchFromSerpAPI(params: SearchParams): Promise<SerpResult[]> {
         isYours: false,
       }));
     } else if (data.organic_results) {
-      results = data.organic_results.slice(0, 10).map((item: any) => ({
+      results = data.organic_results.slice(0, maxResults).map((item: any) => ({
         position: item.position || 0,
         title: item.title || 'N/A',
         link: item.link || '',
@@ -218,7 +280,7 @@ async function fetchFromSerpAPI(params: SearchParams): Promise<SerpResult[]> {
       }));
     } else if (data.local_results) {
       const localResults = data.local_results.results || data.local_results || [];
-      results = localResults.slice(0, 10).map((item: any, index: number) => ({
+      results = localResults.slice(0, maxResults).map((item: any, index: number) => ({
         position: index + 1,
         title: item.title || 'N/A',
         link: item.link || '',
@@ -228,6 +290,7 @@ async function fetchFromSerpAPI(params: SearchParams): Promise<SerpResult[]> {
       }));
     }
 
+    setCachedResults(params, results);
     return results;
   } catch (error: any) {
     if (error.message.includes('API') || error.message.includes('rate limit') || error.message.includes('Invalid')) {
@@ -237,7 +300,7 @@ async function fetchFromSerpAPI(params: SearchParams): Promise<SerpResult[]> {
   }
 }
 
-// Custom API implementation (for future extensibility)
+// Custom API implementation
 async function fetchFromCustomAPI(params: SearchParams): Promise<SerpResult[]> {
   const { apiKey, endpoint } = getApiConfig();
 
@@ -245,11 +308,15 @@ async function fetchFromCustomAPI(params: SearchParams): Promise<SerpResult[]> {
     throw new Error('Custom API not configured. Please add your API details in Settings.');
   }
 
-  // For custom API, we'll use a generic format
+  const cached = getCachedResults(params);
+  if (cached) return cached;
+
+  const maxResults = params.maxResults || 10;
+
   const searchParams = new URLSearchParams({
     api_key: apiKey,
     query: params.query,
-    results: '10',
+    results: String(maxResults),
     country: params.countryCode,
   });
 
@@ -267,11 +334,10 @@ async function fetchFromCustomAPI(params: SearchParams): Promise<SerpResult[]> {
     }
 
     const data = await response.json();
-
     let results: SerpResult[] = [];
 
     if (data.organic_results) {
-      results = data.organic_results.slice(0, 10).map((item: any) => ({
+      results = data.organic_results.slice(0, maxResults).map((item: any) => ({
         position: item.rank || item.position || 0,
         title: item.title || 'N/A',
         link: item.link || '',
@@ -281,6 +347,7 @@ async function fetchFromCustomAPI(params: SearchParams): Promise<SerpResult[]> {
       }));
     }
 
+    setCachedResults(params, results);
     return results;
   } catch (error: any) {
     throw new Error(`Network error: ${error.message}`);
@@ -323,4 +390,57 @@ export function findYourPosition(results: SerpResult[], yourUrl: string): number
     }
   }
   return null;
+}
+
+// ============ CREDIT USAGE TRACKER ============
+export interface CreditUsage {
+  totalRequests: number;
+  cachedHits: number;
+  skippedKeywords: number;
+  savedRequests: number;
+  lastReset: string;
+}
+
+export function getCreditUsage(): CreditUsage {
+  const stored = localStorage.getItem('rankpulse_credit_usage');
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      // fall through
+    }
+  }
+  return {
+    totalRequests: 0,
+    cachedHits: 0,
+    skippedKeywords: 0,
+    savedRequests: 0,
+    lastReset: new Date().toISOString().split('T')[0],
+  };
+}
+
+export function updateCreditUsage(updates: Partial<CreditUsage>) {
+  const current = getCreditUsage();
+  
+  // Reset daily
+  const today = new Date().toISOString().split('T')[0];
+  if (current.lastReset !== today) {
+    current.totalRequests = 0;
+    current.cachedHits = 0;
+    current.skippedKeywords = 0;
+    current.savedRequests = 0;
+    current.lastReset = today;
+  }
+  
+  const updated = { ...current, ...updates };
+  localStorage.setItem('rankpulse_credit_usage', JSON.stringify(updated));
+  return updated;
+}
+
+export function clearSerpCache() {
+  serpCache.clear();
+}
+
+export function getCacheSize(): number {
+  return serpCache.size;
 }

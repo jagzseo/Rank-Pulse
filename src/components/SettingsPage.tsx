@@ -343,6 +343,101 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Credit Optimization Info */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+          <div className="bg-emerald-100 p-2 rounded-lg">
+            <Zap size={18} className="text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Credit Optimization</h2>
+            <p className="text-xs text-gray-500">Built-in features to save your API credits</p>
+          </div>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
+              <h4 className="text-sm font-semibold text-emerald-800 mb-2 flex items-center gap-2">
+                <span className="w-6 h-6 bg-emerald-500 text-white rounded-full flex items-center justify-center text-xs">1</span>
+                Smart Results Count
+              </h4>
+              <p className="text-xs text-emerald-700">
+                Instead of always fetching 10 results, the app intelligently requests only what's needed:
+              </p>
+              <ul className="text-xs text-emerald-600 mt-2 space-y-1">
+                <li>• Top 3 keywords → only 5 results</li>
+                <li>• Top 10 keywords → 10 results</li>
+                <li>• Top 30 keywords → 30 results</li>
+                <li>• New keywords → 10 results (default)</li>
+              </ul>
+            </div>
+
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+              <h4 className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs">2</span>
+                SERP Caching
+              </h4>
+              <p className="text-xs text-blue-700">
+                Results are cached for 1 hour. If the same keyword + location is checked again within that time, cached results are used — <strong>zero API calls</strong>.
+              </p>
+              <p className="text-xs text-blue-600 mt-2">
+                Cache key includes: engine, query, country, city, and results count.
+              </p>
+            </div>
+
+            <div className="bg-violet-50 rounded-lg p-4 border border-violet-100">
+              <h4 className="text-sm font-semibold text-violet-800 mb-2 flex items-center gap-2">
+                <span className="w-6 h-6 bg-violet-500 text-white rounded-full flex items-center justify-center text-xs">3</span>
+                Smart Check Mode
+              </h4>
+              <p className="text-xs text-violet-700">
+                Use "Smart Check" to skip keywords that were checked within the last hour. Only stale keywords trigger new API calls.
+              </p>
+              <p className="text-xs text-violet-600 mt-2">
+                Perfect for frequent checks without wasting credits on fresh data.
+              </p>
+            </div>
+
+            <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
+              <h4 className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
+                <span className="w-6 h-6 bg-amber-500 text-white rounded-full flex items-center justify-center text-xs">4</span>
+                Reduced Delay
+              </h4>
+              <p className="text-xs text-amber-700">
+                Rate limit delay reduced from 1.2s to 0.8s between requests. Faster checks while still respecting API limits.
+              </p>
+              <p className="text-xs text-amber-600 mt-2">
+                Saves ~33% time on bulk checks without triggering rate limits.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-800 mb-2">💰 Estimated Savings Example</h4>
+            <p className="text-xs text-gray-600">
+              With <strong>50 keywords</strong> checked <strong>twice daily</strong>:
+            </p>
+            <div className="grid grid-cols-3 gap-3 mt-2">
+              <div className="text-center">
+                <p className="text-lg font-bold text-red-600">100</p>
+                <p className="text-[10px] text-gray-500">Without optimizations</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold text-emerald-600">~45</p>
+                <p className="text-[10px] text-gray-500">With Smart Check</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold text-emerald-600">~30</p>
+                <p className="text-[10px] text-gray-500">With all optimizations</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              * Savings vary based on keyword overlap, cache hits, and check frequency.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Save Button */}
       <div className="flex items-center justify-between bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2">
