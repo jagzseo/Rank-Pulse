@@ -34,7 +34,20 @@ export const locations: Location[] = [
   {
     country: 'India',
     countryCode: 'in',
-    cities: ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Ahmedabad', 'Chennai', 'Kolkata', 'Pune', 'Jaipur', 'Lucknow', 'Kanpur', 'Nagpur', 'Indore', 'Thane', 'Bhopal', 'Visakhapatnam', 'Patna', 'Vadodara', 'Ghaziabad', 'Ludhiana'],
+    cities: [
+      // North India
+      'Delhi', 'Chandigarh', 'Jaipur', 'Lucknow', 'Agra', 'Varanasi', 'Amritsar', 'Ludhiana', 'Dehradun', 'Haridwar', 'Jammu', 'Srinagar', 'Noida', 'Gurugram',
+      // West India
+      'Mumbai', 'Pune', 'Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Nashik', 'Nagpur', 'Indore', 'Bhopal', 'Udaipur', 'Jodhpur', 'Kota', 'Aurangabad',
+      // South India
+      'Bengaluru', 'Chennai', 'Hyderabad', 'Kochi', 'Thiruvananthapuram', 'Coimbatore', 'Madurai', 'Mysuru', 'Mangaluru', 'Visakhapatnam', 'Vijayawada', 'Tiruchirappalli',
+      // East India
+      'Kolkata', 'Bhubaneswar', 'Cuttack', 'Patna', 'Ranchi', 'Jamshedpur', 'Dhanbad', 'Guwahati', 'Siliguri', 'Asansol',
+      // Central India
+      'Gwalior', 'Jabalpur', 'Raipur', 'Bilaspur',
+      // Northeast India
+      'Shillong', 'Imphal', 'Agartala', 'Aizawl', 'Kohima', 'Itanagar',
+    ],
   },
   {
     country: 'Japan',
