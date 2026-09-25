@@ -31,6 +31,14 @@ export interface SerpResult {
   snippet: string;
   domain: string;
   isYours: boolean;
+  // Google Maps specific fields
+  rating?: number;
+  reviews?: number;
+  address?: string;
+  phone?: string;
+  type?: string;
+  price?: string;
+  placeId?: string;
 }
 
 export interface RankHistory {

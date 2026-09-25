@@ -1021,22 +1021,57 @@ export default function ProjectDetail() {
                               </span>
                             )}
                           </div>
-                          <p className={`text-xs mt-0.5 truncate font-mono ${
-                            result.isYours ? 'text-emerald-700' : 'text-gray-500'
-                          }`}>
-                            {result.isYours ? (() => {
-                              try {
-                                const urlObj = new URL(result.link);
-                                const path = urlObj.pathname + urlObj.search + urlObj.hash;
-                                return path === '/' ? '/' : path;
-                              } catch {
-                                return result.link;
-                              }
-                            })() : result.domain}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                            {result.snippet}
-                          </p>
+                          
+                          {/* Regular SERP or Google Maps display */}
+                          {result.rating !== undefined ? (
+                            // Google Maps result
+                            <div className="mt-1 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {result.rating && (
+                                  <span className="flex items-center gap-0.5 text-xs">
+                                    <span className="text-amber-500">★</span>
+                                    <span className="font-medium text-gray-700">{result.rating}</span>
+                                    {result.reviews && (
+                                      <span className="text-gray-500">({result.reviews})</span>
+                                    )}
+                                  </span>
+                                )}
+                                {result.type && (
+                                  <span className="text-xs text-gray-500">• {result.type}</span>
+                                )}
+                                {result.price && (
+                                  <span className="text-xs text-gray-500">• {result.price}</span>
+                                )}
+                              </div>
+                              {result.address && (
+                                <p className="text-xs text-gray-600">{result.address}</p>
+                              )}
+                              {result.phone && (
+                                <p className="text-xs text-gray-500">{result.phone}</p>
+                              )}
+                            </div>
+                          ) : (
+                            // Regular SERP result
+                            <>
+                              <p className={`text-xs mt-0.5 truncate font-mono ${
+                                result.isYours ? 'text-emerald-700' : 'text-gray-500'
+                              }`}>
+                                {result.isYours ? (() => {
+                                  try {
+                                    const urlObj = new URL(result.link);
+                                    const path = urlObj.pathname + urlObj.search + urlObj.hash;
+                                    return path === '/' ? '/' : path;
+                                  } catch {
+                                    return result.link;
+                                  }
+                                })() : result.domain}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                                {result.snippet}
+                              </p>
+                            </>
+                          )}
+                          
                           <div className="flex items-center gap-2 mt-2">
                             {result.link && (
                               <a
@@ -1046,7 +1081,7 @@ export default function ProjectDetail() {
                                 className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-0.5"
                               >
                                 <ExternalLink size={10} />
-                                Visit
+                                {result.rating !== undefined ? 'View on Maps' : 'Visit'}
                               </a>
                             )}
                           </div>

@@ -302,6 +302,21 @@ export default function SettingsPage() {
               </p>
             </div>
           )}
+
+          {provider === 'scrapingdog' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+              <p className="text-xs font-medium text-blue-900 mb-2 flex items-center gap-2">
+                <span className="w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs">ℹ</span>
+                Google Business Profile (GBP) Tracking
+              </p>
+              <p className="text-xs text-blue-700">
+                When you enable "Track as Google Business" for a keyword, the app automatically uses the Google Maps API endpoint (https://api.scrapingdog.com/google_maps) to fetch local pack rankings. This provides detailed business information including ratings, reviews, address, and phone number.
+              </p>
+              <p className="text-xs text-blue-600 mt-2">
+                <strong>Note:</strong> Google Maps API calls are separate from regular search API calls and may have different credit costs.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

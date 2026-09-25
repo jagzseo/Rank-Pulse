@@ -354,9 +354,86 @@ async function fetchFromCustomAPI(params: SearchParams): Promise<SerpResult[]> {
   }
 }
 
+// Google Maps API implementation for GBP rankings
+async function fetchFromGoogleMaps(params: SearchParams): Promise<SerpResult[]> {
+  const { apiKey } = getApiConfig();
+
+  if (!apiKey) {
+    throw new Error('API key not configured. Please add your API key in Settings.');
+  }
+
+  // Check cache first
+  const cached = getCachedResults(params);
+  if (cached) return cached;
+
+  const searchParams = new URLSearchParams({
+    api_key: apiKey,
+    query: params.query,
+    country: params.countryCode,
+  });
+
+  // Add location coordinates if available
+  if (params.city && params.country) {
+    // For now, we'll use a generic location format
+    // In production, you'd want to convert city names to lat/lng coordinates
+    searchParams.set('ll', `@0,0,15z`); // Placeholder - would need geocoding
+  }
+
+  const url = `https://api.scrapingdog.com/google_maps?${searchParams.toString()}`;
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Invalid API key. Please check your API key in Settings.');
+      }
+      if (response.status === 429) {
+        throw new Error('API rate limit exceeded. Please wait before trying again.');
+      }
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    let results: SerpResult[] = [];
+
+    if (data.search_results) {
+      results = data.search_results.slice(0, 20).map((item: any, index: number) => ({
+        position: index + 1,
+        title: item.title || 'N/A',
+        link: item.website || '',
+        snippet: item.description || '',
+        domain: item.website ? extractDomain(item.website) : '',
+        isYours: false,
+        // Google Maps specific fields
+        rating: item.rating,
+        reviews: item.reviews,
+        address: item.address,
+        phone: item.phone,
+        type: item.type,
+        price: item.price,
+        placeId: item.place_id,
+      }));
+    }
+
+    setCachedResults(params, results);
+    return results;
+  } catch (error: any) {
+    if (error.message.includes('API') || error.message.includes('rate limit') || error.message.includes('Invalid')) {
+      throw error;
+    }
+    throw new Error(`Network error: ${error.message}. Check your internet connection.`);
+  }
+}
+
 // Main function that routes to the appropriate provider
 export async function fetchSerpResults(params: SearchParams): Promise<SerpResult[]> {
   const { provider } = getApiConfig();
+
+  // Route GBP keywords to Google Maps API
+  if (params.isGoogleBusiness) {
+    return fetchFromGoogleMaps(params);
+  }
 
   switch (provider) {
     case 'serpapi':
