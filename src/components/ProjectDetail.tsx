@@ -25,6 +25,9 @@ import {
   Star,
   Eye,
   Zap,
+  TrendingUp,
+  TrendingDown,
+  Filter,
 } from 'lucide-react';
 
 export default function ProjectDetail() {
@@ -50,6 +53,7 @@ export default function ProjectDetail() {
   const [bulkIsGBP, setBulkIsGBP] = useState(false);
   const [selectedKeyword, setSelectedKeyword] = useState<Keyword | null>(null);
   const [checkingSingle, setCheckingSingle] = useState<string | null>(null);
+  const [statsTimeRange, setStatsTimeRange] = useState<'24h' | '7d' | '30d' | '60d' | '3m' | '6m' | '12m'>('30d');
 
   const project = projects.find((p) => p.id === selectedProjectId);
 
@@ -66,6 +70,96 @@ export default function ProjectDetail() {
       </div>
     );
   }
+
+  // Helper function to get keyword position at a specific date from history
+  const getPositionAtDate = (keyword: Keyword, targetDate: Date): number | null => {
+    if (!keyword.history || keyword.history.length === 0) return null;
+    
+    // Find the closest history entry before or on the target date
+    const sortedHistory = [...keyword.history].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    
+    for (const entry of sortedHistory) {
+      const entryDate = new Date(entry.date);
+      if (entryDate <= targetDate) {
+        return entry.position;
+      }
+    }
+    
+    // If no entry before target date, return the earliest entry
+    return sortedHistory[sortedHistory.length - 1]?.position || null;
+  };
+
+  // Calculate stats based on selected time range
+  const getStatsForTimeRange = () => {
+    const now = new Date();
+    let startDate = new Date();
+    
+    switch (statsTimeRange) {
+      case '24h':
+        startDate.setHours(now.getHours() - 24);
+        break;
+      case '7d':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '30d':
+        startDate.setDate(now.getDate() - 30);
+        break;
+      case '60d':
+        startDate.setDate(now.getDate() - 60);
+        break;
+      case '3m':
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case '6m':
+        startDate.setMonth(now.getMonth() - 6);
+        break;
+      case '12m':
+        startDate.setMonth(now.getMonth() - 12);
+        break;
+    }
+
+    // Get current positions
+    const keywordsWithPositions = project.keywords.filter((k) => k.currentPosition && k.currentPosition > 0);
+    
+    // Calculate average position
+    const avgPosition = keywordsWithPositions.length
+      ? Math.round(
+          (keywordsWithPositions.reduce((sum, k) => sum + (k.currentPosition || 0), 0) /
+            keywordsWithPositions.length) * 10
+        ) / 10
+      : 0;
+
+    // Calculate improved keywords (compare current position with position at start of time range)
+    let improvedCount = 0;
+    project.keywords.forEach((keyword) => {
+      if (!keyword.currentPosition) return;
+      
+      const positionAtStart = getPositionAtDate(keyword, startDate);
+      if (positionAtStart && keyword.currentPosition < positionAtStart) {
+        improvedCount++;
+      }
+    });
+
+    // Calculate top rankings
+    const top3Count = project.keywords.filter((k) => k.currentPosition && k.currentPosition <= 3).length;
+    const top10Count = project.keywords.filter((k) => k.currentPosition && k.currentPosition <= 10).length;
+    const top30Count = project.keywords.filter((k) => k.currentPosition && k.currentPosition <= 30).length;
+    const top100Count = project.keywords.filter((k) => k.currentPosition && k.currentPosition <= 100).length;
+
+    return {
+      avgPosition,
+      improvedCount,
+      totalKeywords: project.keywords.length,
+      top3Count,
+      top10Count,
+      top30Count,
+      top100Count,
+    };
+  };
+
+  const stats = getStatsForTimeRange();
 
   const handleAddKeyword = (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,18 +249,6 @@ export default function ProjectDetail() {
     };
   };
 
-  // Only average keywords that have actual positions (not null/0)
-  const keywordsWithPositions = project.keywords.filter((k) => k.currentPosition && k.currentPosition > 0);
-  const avgPosition = keywordsWithPositions.length
-    ? Math.round(
-        (keywordsWithPositions.reduce((sum, k) => sum + (k.currentPosition || 0), 0) /
-          keywordsWithPositions.length) * 10
-      ) / 10
-    : 0;
-
-  const top3Count = project.keywords.filter((k) => k.currentPosition && k.currentPosition <= 3).length;
-  const top10Count = project.keywords.filter((k) => k.currentPosition && k.currentPosition <= 10).length;
-
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -245,49 +327,108 @@ export default function ProjectDetail() {
       )}
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <Target size={18} className="text-blue-600" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{project.keywords.length}</p>
-              <p className="text-xs text-gray-500">Keywords</p>
-            </div>
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+        {/* Time Range Filter */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <Filter size={16} className="text-gray-400" />
+            <span className="text-sm font-medium text-gray-700">View data for:</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {[
+              { value: '24h', label: '24 Hours' },
+              { value: '7d', label: '7 Days' },
+              { value: '30d', label: '30 Days' },
+              { value: '60d', label: '60 Days' },
+              { value: '3m', label: '3 Months' },
+              { value: '6m', label: '6 Months' },
+              { value: '12m', label: '12 Months' },
+            ].map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setStatsTimeRange(option.value as any)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  statsTimeRange === option.value
+                    ? 'bg-emerald-500 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="bg-purple-100 p-2 rounded-lg">
-              <BarChart3 size={18} className="text-purple-600" />
+
+        {/* Stats Cards Grid */}
+        <div className="p-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {/* Average Position */}
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl p-4 border border-purple-200/50">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="bg-purple-500 p-1.5 rounded-lg">
+                <BarChart3 size={14} className="text-white" />
+              </div>
+              <span className="text-xs font-medium text-purple-700">Avg. Position</span>
             </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{avgPosition || '—'}</p>
-              <p className="text-xs text-gray-500">Avg. Position</p>
-            </div>
+            <p className="text-2xl font-bold text-purple-900">{stats.avgPosition || '—'}</p>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="bg-emerald-100 p-2 rounded-lg">
-              <Award size={18} className="text-emerald-600" />
+
+          {/* Improved Keywords */}
+          <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200/50">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="bg-emerald-500 p-1.5 rounded-lg">
+                <TrendingUp size={14} className="text-white" />
+              </div>
+              <span className="text-xs font-medium text-emerald-700">Improved</span>
             </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{top3Count}</p>
-              <p className="text-xs text-gray-500">Top 3</p>
-            </div>
+            <p className="text-2xl font-bold text-emerald-900">
+              {stats.improvedCount}
+              <span className="text-sm font-normal text-emerald-600">/{stats.totalKeywords}</span>
+            </p>
+            <p className="text-[10px] text-emerald-600 mt-0.5">keywords improved</p>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="bg-amber-100 p-2 rounded-lg">
-              <Star size={18} className="text-amber-600" />
+
+          {/* Top 3 */}
+          <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-xl p-4 border border-amber-200/50">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="bg-amber-500 p-1.5 rounded-lg">
+                <Award size={14} className="text-white" />
+              </div>
+              <span className="text-xs font-medium text-amber-700">Top 3</span>
             </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{top10Count}</p>
-              <p className="text-xs text-gray-500">Top 10</p>
+            <p className="text-2xl font-bold text-amber-900">{stats.top3Count}</p>
+          </div>
+
+          {/* Top 10 */}
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-4 border border-blue-200/50">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="bg-blue-500 p-1.5 rounded-lg">
+                <Star size={14} className="text-white" />
+              </div>
+              <span className="text-xs font-medium text-blue-700">Top 10</span>
             </div>
+            <p className="text-2xl font-bold text-blue-900">{stats.top10Count}</p>
+          </div>
+
+          {/* Top 30 */}
+          <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-xl p-4 border border-indigo-200/50">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="bg-indigo-500 p-1.5 rounded-lg">
+                <Target size={14} className="text-white" />
+              </div>
+              <span className="text-xs font-medium text-indigo-700">Top 30</span>
+            </div>
+            <p className="text-2xl font-bold text-indigo-900">{stats.top30Count}</p>
+          </div>
+
+          {/* Top 100 */}
+          <div className="bg-gradient-to-br from-rose-50 to-rose-100/50 rounded-xl p-4 border border-rose-200/50">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="bg-rose-500 p-1.5 rounded-lg">
+                <Eye size={14} className="text-white" />
+              </div>
+              <span className="text-xs font-medium text-rose-700">Top 100</span>
+            </div>
+            <p className="text-2xl font-bold text-rose-900">{stats.top100Count}</p>
           </div>
         </div>
       </div>
