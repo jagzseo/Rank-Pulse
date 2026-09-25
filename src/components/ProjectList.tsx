@@ -10,8 +10,10 @@ import {
   Eye,
   Search,
   X,
-  Building2,
   AlertCircle,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from 'lucide-react';
 
 export default function ProjectList() {
@@ -98,79 +100,219 @@ export default function ProjectList() {
         />
       </div>
 
-      {/* Project Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredProjects.map((project) => (
-          <div
-            key={project.id}
-            className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all group"
-          >
-            <div className="p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-emerald-500/20">
-                  {project.name.charAt(0)}
-                </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleViewProject(project.id)}
-                    className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                    title="View Details"
-                  >
-                    <Eye size={16} />
-                  </button>
-                  <button
-                    onClick={() => deleteProject(project.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete Project"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-
-              <h3 className="font-semibold text-gray-900 text-lg">{project.name}</h3>
-              <p className="text-sm text-gray-500 truncate mt-0.5">{project.url}</p>
-
-              <div className="flex flex-wrap gap-2 mt-3">
-                <span className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-md">
-                  <Globe size={12} />
-                  {project.searchEngine}
-                </span>
-                <span className="flex items-center gap-1 text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded-md">
-                  <MapPin size={12} />
-                  {project.city || 'Global'}
-                </span>
-                {project.trackGoogleBusiness && (
-                  <span className="flex items-center gap-1 text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-md">
-                    <AlertCircle size={12} />
-                    GBP Tracking
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-                <div className="flex items-center gap-1 text-xs text-gray-500">
-                  <Building2 size={12} />
-                  <span>{project.keywords.length} keywords</span>
-                </div>
-                <span className="text-xs text-gray-400">
-                  {project.lastChecked
-                    ? `Last: ${project.lastChecked}`
-                    : 'Not checked yet'}
-                </span>
-              </div>
+      {/* Projects List */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        {filteredProjects.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Search size={24} className="text-gray-400" />
             </div>
+            <p className="text-gray-500 font-medium">No projects found</p>
+            <p className="text-sm text-gray-400 mt-1">Create a new project to get started</p>
           </div>
-        ))}
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50/80 border-b border-gray-100">
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Project
+                  </th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Engine & Location
+                  </th>
+                  <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Keywords
+                  </th>
+                  <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Avg. Position
+                  </th>
+                  <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Trend
+                  </th>
+                  <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Last Checked
+                  </th>
+                  <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filteredProjects.map((project) => {
+                  const keywordsWithPositions = project.keywords.filter(
+                    (k) => k.currentPosition && k.currentPosition > 0
+                  );
+                  const avgPosition = keywordsWithPositions.length
+                    ? Math.round(
+                        (keywordsWithPositions.reduce(
+                          (sum, k) => sum + (k.currentPosition || 0),
+                          0
+                        ) /
+                          keywordsWithPositions.length) *
+                          10
+                      ) / 10
+                    : null;
+
+                  const improvedCount = project.keywords.filter(
+                    (k) =>
+                      k.currentPosition &&
+                      k.previousPosition &&
+                      k.currentPosition < k.previousPosition
+                  ).length;
+                  const declinedCount = project.keywords.filter(
+                    (k) =>
+                      k.currentPosition &&
+                      k.previousPosition &&
+                      k.currentPosition > k.previousPosition
+                  ).length;
+
+                  return (
+                    <tr
+                      key={project.id}
+                      className="hover:bg-gray-50/50 transition-colors cursor-pointer"
+                      onClick={() => handleViewProject(project.id)}
+                    >
+                      {/* Project Name & URL */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                            {project.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-gray-900 text-sm truncate">
+                                {project.name}
+                              </h3>
+                              {project.trackGoogleBusiness && (
+                                <span className="flex items-center gap-0.5 text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded font-medium shrink-0">
+                                  <AlertCircle size={9} />
+                                  GBP
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 truncate mt-0.5">
+                              {project.url}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Engine & Location */}
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="flex items-center gap-1.5 text-xs text-gray-700">
+                            <Globe size={12} className="text-gray-400" />
+                            <span className="capitalize">{project.searchEngine}</span>
+                          </span>
+                          <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <MapPin size={12} className="text-gray-400" />
+                            {project.city ? `${project.city}, ` : ''}
+                            {project.country}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Keywords Count */}
+                      <td className="px-6 py-4 text-center">
+                        <span className="inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-sm font-semibold">
+                          {project.keywords.length}
+                        </span>
+                      </td>
+
+                      {/* Average Position */}
+                      <td className="px-6 py-4 text-center">
+                        {avgPosition ? (
+                          <span
+                            className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1 rounded-md text-sm font-semibold ${
+                              avgPosition <= 3
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : avgPosition <= 10
+                                ? 'bg-blue-50 text-blue-700'
+                                : avgPosition <= 30
+                                ? 'bg-amber-50 text-amber-700'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            #{avgPosition}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+
+                      {/* Trend */}
+                      <td className="px-6 py-4 text-center">
+                        {improvedCount > 0 || declinedCount > 0 ? (
+                          <div className="flex items-center justify-center gap-1">
+                            {improvedCount > 0 && (
+                              <span className="flex items-center gap-0.5 text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-medium">
+                                <TrendingUp size={10} />
+                                {improvedCount}
+                              </span>
+                            )}
+                            {declinedCount > 0 && (
+                              <span className="flex items-center gap-0.5 text-xs bg-red-50 text-red-700 px-1.5 py-0.5 rounded font-medium">
+                                <TrendingDown size={10} />
+                                {declinedCount}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+
+                      {/* Last Checked */}
+                      <td className="px-6 py-4 text-center">
+                        <span className="text-xs text-gray-500">
+                          {project.lastChecked || 'Never'}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewProject(project.id);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                            title="View Details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteProject(project.id);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete Project"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {filteredProjects.length === 0 && (
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Search size={24} className="text-gray-400" />
-          </div>
-          <p className="text-gray-500">No projects found</p>
-          <p className="text-sm text-gray-400 mt-1">Create a new project to get started</p>
+      {/* Summary Footer */}
+      {filteredProjects.length > 0 && (
+        <div className="flex items-center justify-between px-2 text-xs text-gray-500">
+          <span>
+            Showing {filteredProjects.length} project{filteredProjects.length !== 1 ? 's' : ''}
+          </span>
+          <span>
+            Total: {filteredProjects.reduce((sum, p) => sum + p.keywords.length, 0)} keywords
+          </span>
         </div>
       )}
 
